@@ -1,0 +1,132 @@
+#include <irrlicht.h>
+#include <iostream>
+#include <vector>
+
+using namespace irr;
+
+class VoxelEditor {
+public:
+    VoxelEditor();
+    ~VoxelEditor();
+    void run();
+
+private:
+    void createScene();
+    void handleEvents();
+    void applyTexture(int x, int y, int z);
+    void selectTexture();
+
+    IrrlichtDevice *mDevice;
+    video::IVideoDriver *mDriver;
+    scene::ISceneManager *mSceneMgr;
+    scene::ICameraSceneNode *mCamera;
+    std::vector<std::vector<std::vector<scene::IMeshSceneNode*>>> mVoxels;
+    int mGridSize;
+    float mVoxelSize;
+    bool mRunning;
+    std::string mCurrentTexture;
+
+    u32 mLastClickTime;
+    core::vector3df mLastClickPos;
+};
+
+VoxelEditor::VoxelEditor()
+    : mDevice(nullptr),
+      mDriver(nullptr),
+      mSceneMgr(nullptr),
+      mCamera(nullptr),
+      mGridSize(10),
+      mVoxelSize(10.0f),
+      mRunning(true),
+      mLastClickTime(0) {
+    mVoxels.resize(mGridSize, std::vector<std::vector<scene::IMeshSceneNode*>>(mGridSize, std::vector<scene::IMeshSceneNode*>(mGridSize, nullptr)));
+    mCurrentTexture = "default.png";
+}
+
+VoxelEditor::~VoxelEditor() {
+    if (mDevice) {
+        mDevice->drop();
+    }
+}
+
+void VoxelEditor::run() {
+    mDevice = createDevice(video::EDT_OPENGL, core::dimension2d<u32>(800, 600), 16, false, false, false, nullptr);
+    if (!mDevice) {
+        throw std::runtime_error("Failed to initialize Irrlicht");
+    }
+
+    mDriver = mDevice->getVideoDriver();
+    mSceneMgr = mDevice->getSceneManager();
+    mCamera = mSceneMgr->addCameraSceneNode();
+    mCamera->setPosition(core::vector3df(50, 50, -150));
+    mCamera->lookAt(core::vector3df(50, 50, 0));
+
+    createScene();
+
+    while (mDevice->run() && mRunning) {
+        handleEvents();
+        mDriver->beginScene(true, true, video::SColor(255, 100, 101, 140));
+        mSceneMgr->drawAll();
+        mDriver->endScene();
+    }
+}
+
+void VoxelEditor::createScene() {
+    for (int x = 0; x < mGridSize; ++x) {
+        for (int y = 0; y < mGridSize; ++y) {
+            for (int z = 0; z < mGridSize; ++z) {
+                scene::IMeshSceneNode *voxel = mSceneMgr->addCubeSceneNode(mVoxelSize);
+                voxel->setPosition(core::vector3df(x * mVoxelSize, y * mVoxelSize, z * mVoxelSize));
+                voxel->setMaterialFlag(video::EMF_LIGHTING, false);
+                voxel->setMaterialTexture(0, mDriver->getTexture(mCurrentTexture.c_str()));
+                mVoxels[x][y][z] = voxel;
+            }
+        }
+    }
+}
+
+void VoxelEditor::handleEvents() {
+    core::position2di cursorPos = mDevice->getCursorControl()->getPosition();
+    if (mDevice->getTimer()->getTime() - mLastClickTime > 500) {
+        if (mDevice->getSceneCollisionManager()->getSceneNodeFromScreenCoordinatesBB(cursorPos)) {
+            mLastClickTime = mDevice->getTimer()->getTime();
+            core::line3df ray = mDevice->getSceneCollisionManager()->getRayFromScreenCoordinates(cursorPos, mCamera);
+            core::vector3df intersection;
+            core::triangle3df hitTriangle;
+            scene::ISceneNode *selectedNode = mDevice->getSceneCollisionManager()->getSceneNodeAndCollisionPointFromRay(ray, intersection, hitTriangle);
+
+            if (selectedNode) {
+                core::vector3df pos = selectedNode->getPosition();
+                int x = pos.X / mVoxelSize;
+                int y = pos.Y / mVoxelSize;
+                int z = pos.Z / mVoxelSize;
+                selectTexture();
+                applyTexture(x, y, z);
+            }
+        }
+    }
+}
+
+void VoxelEditor::applyTexture(int x, int y, int z) {
+    if (x >= 0 && x < mGridSize && y >= 0 && y < mGridSize && z >= 0 && z < mGridSize) {
+        scene::IMeshSceneNode *voxel = mVoxels[x][y][z];
+        voxel->setMaterialTexture(0, mDriver->getTexture(mCurrentTexture.c_str()));
+    }
+}
+
+void VoxelEditor::selectTexture() {
+    std::cout << "Enter the path to the texture file: ";
+    std::cin >> mCurrentTexture;
+}
+
+int main() {
+    VoxelEditor editor;
+    try {
+        editor.run();
+    } catch (const std::exception &e) {
+        std::cerr << "Exception: " << e.what() << std::endl;
+        return 1;
+    }
+    return 0;
+}
+
