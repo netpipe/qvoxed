@@ -85,7 +85,7 @@ VoxelEditor::VoxelEditor()
     mSceneMgr = mDevice->getSceneManager();
     mCamera = mSceneMgr->addCameraSceneNode();
     mCamera->setPosition(core::vector3df(0, 30, -40));
-   // mCamera->lookAt(core::vector3df(0, 0, 0));
+    mCamera->setTarget(core::vector3df(0, 0, 0));
 
     createScene();
 }
